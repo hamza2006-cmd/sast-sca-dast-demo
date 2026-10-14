@@ -9,11 +9,11 @@ sast-sonarqube:
   script:
     # --- Tests réseau temporaires (à supprimer une fois le problème réglé) ---
     - echo "Test reseau"
-    - wget -qO- -T 10 http://sonarqube-container:9000/api/system/status || echo "INJOIGNABLE"
-    - wget -qO- -T 10 "$SONAR_HOST_URL/api/system/status" || echo "VARIABLE_INJOIGNABLE"
-    # --- Analyse ---
+    - getent hosts sonarqube-container || echo "DNS_KO"
+    - bash -c 'exec 3<>/dev/tcp/sonarqube-container/9000 && printf "GET /api/system/status HTTP/1.0\r\n\r\n" >&3 && head -n 12 <&3' || echo "TCP_KO"
+    # --- Analyse (mode détaillé -X temporaire) ---
     - >
-      sonar-scanner
+      sonar-scanner -X
       -Dsonar.projectKey="$SONAR_PROJECT_KEY"
       -Dsonar.sources=vulnerable_flask_app
       -Dsonar.host.url="$SONAR_HOST_URL"
