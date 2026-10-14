@@ -1,21 +1,17 @@
 stages:
   - security
 
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  SONAR_USER_HOME: "$CI_PROJECT_DIR/.sonar"
-
-cache:
-  paths:
-    - .cache/pip/
-    - .sonar/cache/
-
 sast-sonarqube:
   stage: security
   image:
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [""]
   script:
+    # --- Tests réseau temporaires (à supprimer une fois le problème réglé) ---
+    - echo "Test reseau"
+    - wget -qO- -T 10 http://sonarqube-container:9000/api/system/status || echo "INJOIGNABLE"
+    - wget -qO- -T 10 "$SONAR_HOST_URL/api/system/status" || echo "VARIABLE_INJOIGNABLE"
+    # --- Analyse ---
     - >
       sonar-scanner
       -Dsonar.projectKey="$SONAR_PROJECT_KEY"
