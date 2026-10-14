@@ -1,0 +1,35 @@
+stages:
+  - security
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  SONAR_USER_HOME: "$CI_PROJECT_DIR/.sonar"
+
+cache:
+  paths:
+    - .cache/pip/
+    - .sonar/cache/
+
+sast-sonarqube:
+  stage: security
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  script:
+    - >
+      sonar-scanner
+      -Dsonar.projectKey="$SONAR_PROJECT_KEY"
+      -Dsonar.sources=vulnerable_flask_app
+      -Dsonar.host.url="$SONAR_HOST_URL"
+      -Dsonar.token="$SONAR_TOKEN"
+  rules:
+    - if: '$SONAR_TOKEN && $SONAR_HOST_URL && $SONAR_PROJECT_KEY'
+
+sca-pip-audit:
+  stage: security
+  image: python:3.11
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install pip-audit
+  script:
+    - pip-audit -r vulnerable_flask_app/requirements.txt
