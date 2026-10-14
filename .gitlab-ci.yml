@@ -7,13 +7,14 @@ sast-sonarqube:
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [""]
   script:
-    # --- Tests réseau temporaires (à supprimer une fois le problème réglé) ---
-    - echo "Test reseau"
+    # --- Diagnostics temporaires (à supprimer ensuite) ---
+    - cat /etc/resolv.conf
+    - hostname -i || true
     - getent hosts sonarqube-container || echo "DNS_KO"
-    - bash -c 'exec 3<>/dev/tcp/sonarqube-container/9000 && printf "GET /api/system/status HTTP/1.0\r\n\r\n" >&3 && head -n 12 <&3' || echo "TCP_KO"
-    # --- Analyse (mode détaillé -X temporaire) ---
+    - bash -c 'exec 3<>/dev/tcp/10.0.2.15/9000 && echo PORT_HOTE_OK' || echo PORT_HOTE_KO
+    # --- Analyse ---
     - >
-      sonar-scanner -X
+      sonar-scanner
       -Dsonar.projectKey="$SONAR_PROJECT_KEY"
       -Dsonar.sources=vulnerable_flask_app
       -Dsonar.host.url="$SONAR_HOST_URL"
