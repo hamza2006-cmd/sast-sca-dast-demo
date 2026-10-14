@@ -19,7 +19,7 @@ sast-sonarqube:
     - >
       sonar-scanner
       -Dsonar.projectKey="$SONAR_PROJECT_KEY"
-      -Dsonar.sources=vulnerable_flask_app
+      -Dsonar.sources=vulnerable_flask_app_gitlab
       -Dsonar.host.url="$SONAR_HOST_URL"
       -Dsonar.token="$SONAR_TOKEN"
   rules:
