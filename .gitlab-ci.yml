@@ -30,7 +30,7 @@ sca-pip-audit:
 dast-zap:
   stage: dast
   image: docker:cli
-  needs: []            # démarre sans attendre les jobs du stage security
+  needs: []
   timeout: 40m
   variables:
     NET: ci-net
@@ -38,10 +38,8 @@ dast-zap:
     - docker rm -f flask-app-container zap-run 2>/dev/null || true
     - docker volume rm zap-wrk 2>/dev/null || true
   script:
-    # 1. Construire et lancer l'app Flask
     - docker build -t my-vulnerable-flask-app ./vulnerable_flask_app
     - docker run -d --name flask-app-container --network $NET my-vulnerable-flask-app
-    # 2. Attendre que l'app réponde (max ~60 s)
     - |
       for i in $(seq 1 30); do
         if docker run --rm --network $NET curlimages/curl -s -o /dev/null -m 3 http://flask-app-container:5000/; then
@@ -49,15 +47,14 @@ dast-zap:
         fi
         echo "Attente de l'app ($i)..."; sleep 2
       done
-    # 3. Scan ZAP (-I : les warnings ne font pas échouer le job)
     - docker volume create zap-wrk
+    - docker run --rm -v zap-wrk:/zap/wrk busybox chmod 777 /zap/wrk
     - >
       docker run --name zap-run --network $NET -v zap-wrk:/zap/wrk
       ghcr.io/zaproxy/zaproxy:stable
       zap-full-scan.py -t http://flask-app-container:5000
       -I -m 2 -j -r report.html -J report.json -x report.xml -a
   after_script:
-    # 4. Récupérer les rapports et nettoyer (s'exécute même en cas d'échec)
     - mkdir -p zap_reports
     - docker cp zap-run:/zap/wrk/. zap_reports/ || true
     - docker rm -f flask-app-container zap-run || true
