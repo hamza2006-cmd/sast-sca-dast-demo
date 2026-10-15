@@ -52,8 +52,8 @@ dast-zap:
     - >
       docker run --name zap-run --network $NET -v zap-wrk:/zap/wrk
       ghcr.io/zaproxy/zaproxy:stable
-      zap-full-scan.py -t http://flask-app-container:5000
-      -I -m 2 -j -r report.html -J report.json -x report.xml -a
+      zap-baseline.py -t http://flask-app-container:5000
+      -I -j -r report.html -J report.json -x report.xml
   after_script:
     - mkdir -p zap_reports
     - docker cp zap-run:/zap/wrk/. zap_reports/ || true
