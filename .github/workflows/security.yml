@@ -1,0 +1,101 @@
+name: Security (SAST - SCA - DAST)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  APP_DIR: vulnerable_flask_app
+  SONAR_NETWORK: sonarqube-network
+  SONAR_HOST_URL: http://sonarqube-container:9000
+  SONAR_PROJECT_KEY: Vulnerable-Flask-App
+
+jobs:
+  sast-sonarqube:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan SonarQube
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network "$SONAR_NETWORK" \
+            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+            -e SONAR_TOKEN="${{ secrets.SONAR_TOKEN }}" \
+            -v "$PWD:/usr/src" \
+            sonarsource/sonar-scanner-cli \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.sources="$APP_DIR"
+
+  sca-pip-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      - name: Auditer requirements.txt
+        run: pip-audit -r ${{ env.APP_DIR }}/requirements.txt
+
+  dast-zap:
+    runs-on: self-hosted
+    timeout-minutes: 40
+    env:
+      NET: ci-net
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nettoyage préalable
+        run: |
+          docker rm -f flask-app-container zap-run 2>/dev/null || true
+          docker volume rm zap-wrk 2>/dev/null || true
+          docker network create $NET 2>/dev/null || true
+
+      - name: Construire et lancer l'application Flask
+        run: |
+          docker build -t my-vulnerable-flask-app ./${{ env.APP_DIR }}
+          docker run -d --name flask-app-container --network $NET my-vulnerable-flask-app
+
+      - name: Attendre que l'application réponde
+        run: |
+          for i in $(seq 1 30); do
+            if docker run --rm --network $NET curlimages/curl -s -o /dev/null -m 3 http://flask-app-container:5000/; then
+              echo "App prête"; break
+            fi
+            echo "Attente de l'app ($i)..."; sleep 2
+          done
+
+      - name: Scan ZAP
+        run: |
+          docker volume create zap-wrk
+          docker run --name zap-run --network $NET -v zap-wrk:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py -t http://flask-app-container:5000 \
+            -I -m 2 -j -r report.html -J report.json -x report.xml -a
+
+      - name: Récupérer les rapports et nettoyer
+        if: always()
+        run: |
+          mkdir -p zap_reports
+          docker cp zap-run:/zap/wrk/. zap_reports/ || true
+          docker rm -f flask-app-container zap-run || true
+          docker volume rm zap-wrk || true
+
+      - name: Publier les rapports ZAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports
+          path: zap_reports/
+          retention-days: 5
