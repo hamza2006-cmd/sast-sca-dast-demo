@@ -79,7 +79,7 @@ jobs:
       - name: Scan ZAP
         run: |
           docker volume create zap-wrk
-          docker run --name zap-run --network $NET -v zap-wrk:/zap/wrk \
+          docker run --name zap-run --user root --network $NET -v zap-wrk:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-full-scan.py -t http://flask-app-container:5000 \
             -I -m 2 -j -r report.html -J report.json -x report.xml -a
